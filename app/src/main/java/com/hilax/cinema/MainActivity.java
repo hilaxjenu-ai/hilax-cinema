@@ -1,169 +1,246 @@
 package com.hilax.cinema;
 
-import android.annotation.SuppressLint;
-import android.app.DownloadManager;
-import android.content.Context;
-import android.content.Intent;
-import android.content.pm.ActivityInfo;
-import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
-import android.view.View;
-import android.view.WindowManager;
-import android.webkit.CookieManager;
-import android.webkit.URLUtil;
-import android.webkit.WebChromeClient;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.widget.FrameLayout;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.media3.common.MediaItem;
+import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.ui.PlayerView;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String LIVE_URL = "https://hilax.vinokaran.my.id:5000/";
+    private static final String BASE_URL = "https://hilax.vinokaran.my.id:5000";
 
-    private WebView webView;
-    private FrameLayout rootContainer;
-    private View customView;
-    private WebChromeClient.CustomViewCallback customViewCallback;
+    private ExoPlayer player;
+    private PlayerView playerView;
+    private ListView lvItems;
+    private TextView tvTitle;
 
-    @SuppressLint("SetJavaScriptEnabled")
+    private boolean isShowingCategories = true;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
 
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        tvTitle = findViewById(R.id.tvTitle);
+        playerView = findViewById(R.id.playerView);
+        lvItems = findViewById(R.id.lvItems);
 
-        rootContainer = new FrameLayout(this);
-        rootContainer.setBackgroundColor(Color.parseColor("#0B0B0C"));
+        player = new ExoPlayer.Builder(this).build();
+        playerView.setPlayer(player);
 
-        webView = new WebView(this);
-        webView.setBackgroundColor(Color.parseColor("#0B0B0C"));
-        rootContainer.addView(webView, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-        ));
-        setContentView(rootContainer);
+        loadCategories();
+    }
 
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
-        settings.setBuiltInZoomControls(false);
-        settings.setDisplayZoomControls(false);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+    private void loadCategories() {
+        isShowingCategories = true;
+        runOnUiThread(() -> tvTitle.setText("HILAX CINEMA - CATEGORIES"));
 
-        CookieManager.getInstance().setAcceptCookie(true);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
-
-        webView.setWebViewClient(new WebViewClient() {
+        fetchJson(BASE_URL + "/api/categories", new JsonCallback() {
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                Uri uri = request.getUrl();
-                String scheme = uri.getScheme();
-                if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
-                    return false;
-                }
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, uri));
-                } catch (Exception ignored) {
-                }
-                return true;
+            public void onSuccess(JSONObject json) {
+                List<String> titles = new ArrayList<>();
+                List<String> urls = new ArrayList<>();
+                parseItems(json, titles, urls);
+
+                runOnUiThread(() -> {
+                    ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                            MainActivity.this,
+                            android.R.layout.simple_list_item_1,
+                            titles
+                    );
+                    lvItems.setAdapter(adapter);
+                    lvItems.setOnItemClickListener((parent, view, position, id) -> {
+                        if (position < urls.size()) {
+                            loadBrowse(titles.get(position), urls.get(position));
+                        }
+                    });
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                showToast("Categories error: " + message);
             }
         });
+    }
 
-        webView.setWebChromeClient(new WebChromeClient() {
+    private void loadBrowse(String categoryTitle, String pageUrl) {
+        isShowingCategories = false;
+        runOnUiThread(() -> tvTitle.setText("HILAX CINEMA - " + categoryTitle));
+
+        String encoded = URLEncoder.encode(pageUrl == null ? "" : pageUrl, StandardCharsets.UTF_8);
+        fetchJson(BASE_URL + "/api/browse?url=" + encoded, new JsonCallback() {
             @Override
-            public void onShowCustomView(View view, CustomViewCallback callback) {
-                if (customView != null) {
-                    onHideCustomView();
+            public void onSuccess(JSONObject json) {
+                List<String> titles = new ArrayList<>();
+                List<String> urls = new ArrayList<>();
+                parseItems(json, titles, urls);
+
+                runOnUiThread(() -> {
+                    ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                            MainActivity.this,
+                            android.R.layout.simple_list_item_1,
+                            titles
+                    );
+                    lvItems.setAdapter(adapter);
+                    lvItems.setOnItemClickListener((parent, view, position, id) -> {
+                        if (position < urls.size()) {
+                            resolveAndPlay(titles.get(position), urls.get(position));
+                        }
+                    });
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                showToast("Browse error: " + message);
+            }
+        });
+    }
+
+    private void resolveAndPlay(String itemTitle, String itemUrl) {
+        showToast("Loading: " + itemTitle);
+        String encoded = URLEncoder.encode(itemUrl == null ? "" : itemUrl, StandardCharsets.UTF_8);
+        fetchJson(BASE_URL + "/api/resolve?url=" + encoded, new JsonCallback() {
+            @Override
+            public void onSuccess(JSONObject json) {
+                String streamUrl = json.optString("stream_url", "");
+                if (streamUrl.isEmpty()) {
+                    streamUrl = json.optString("url", "");
+                }
+                if (streamUrl.isEmpty() && json.has("data") && json.optJSONObject("data") != null) {
+                    JSONObject data = json.optJSONObject("data");
+                    streamUrl = data.optString("stream_url", data.optString("url", ""));
+                }
+
+                if (streamUrl.isEmpty()) {
+                    showToast("Stream URL not found in response");
                     return;
                 }
-                customView = view;
-                customViewCallback = callback;
-                webView.setVisibility(View.GONE);
-                rootContainer.addView(customView, new FrameLayout.LayoutParams(
-                        FrameLayout.LayoutParams.MATCH_PARENT,
-                        FrameLayout.LayoutParams.MATCH_PARENT
-                ));
-                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+
+                if (streamUrl.startsWith("/")) {
+                    streamUrl = BASE_URL + streamUrl;
+                }
+
+                final String finalUrl = streamUrl;
+                runOnUiThread(() -> {
+                    tvTitle.setText("PLAYING: " + itemTitle);
+                    playStream(finalUrl);
+                });
             }
 
             @Override
-            public void onHideCustomView() {
-                if (customView == null) return;
-                rootContainer.removeView(customView);
-                customView = null;
-                webView.setVisibility(View.VISIBLE);
-                if (customViewCallback != null) {
-                    customViewCallback.onCustomViewHidden();
-                    customViewCallback = null;
-                }
-                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            public void onError(String message) {
+                showToast("Resolve error: " + message);
             }
         });
+    }
 
-        webView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
+    private void playStream(String streamUrl) {
+        if (player == null) return;
+        MediaItem mediaItem = MediaItem.fromUri(Uri.parse(streamUrl));
+        player.setMediaItem(mediaItem);
+        player.prepare();
+        player.play();
+    }
+
+    private void parseItems(JSONObject json, List<String> titles, List<String> urls) {
+        JSONArray items = json.optJSONArray("items");
+        if (items == null && json.has("data") && json.optJSONObject("data") != null) {
+            items = json.optJSONObject("data").optJSONArray("items");
+        }
+        if (items != null) {
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject obj = items.optJSONObject(i);
+                if (obj != null) {
+                    String title = obj.optString("title", obj.optString("name", "Item " + (i + 1)));
+                    String url = obj.optString("url", obj.optString("link", ""));
+                    titles.add(title);
+                    urls.add(url);
+                }
+            }
+        }
+    }
+
+    private void fetchJson(String endpoint, JsonCallback callback) {
+        Executors.newSingleThreadExecutor().execute(() -> {
             try {
-                DownloadManager.Request req = new DownloadManager.Request(Uri.parse(url));
-                String fileName = URLUtil.guessFileName(url, contentDisposition, mimetype);
-                req.setMimeType(mimetype);
-                req.addRequestHeader("User-Agent", userAgent);
-                String cookies = CookieManager.getInstance().getCookie(url);
-                if (cookies != null) {
-                    req.addRequestHeader("Cookie", cookies);
+                HttpURLConnection conn = (HttpURLConnection) new URL(endpoint).openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(12000);
+                conn.setReadTimeout(12000);
+
+                BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8)
+                );
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line);
                 }
-                req.setTitle(fileName);
-                req.setDescription("Downloading from Hilax Cinema");
-                req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
-                DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
-                if (dm != null) {
-                    dm.enqueue(req);
-                    Toast.makeText(this, "Downloading: " + fileName, Toast.LENGTH_SHORT).show();
-                }
+                reader.close();
+                conn.disconnect();
+
+                JSONObject json = new JSONObject(sb.toString());
+                callback.onSuccess(json);
             } catch (Exception e) {
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+                callback.onError(e.getMessage() != null ? e.getMessage() : "Network error");
             }
         });
+    }
 
-        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
-            @Override
-            public void handleOnBackPressed() {
-                if (customView != null) {
-                    WebChromeClient client = webView.getWebChromeClient();
-                    if (client != null) {
-                        client.onHideCustomView();
-                    }
-                } else if (webView.canGoBack()) {
-                    webView.goBack();
-                } else {
-                    finish();
-                }
-            }
-        });
+    private void showToast(String msg) {
+        runOnUiThread(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_SHORT).show());
+    }
 
-        if (savedInstanceState != null) {
-            webView.restoreState(savedInstanceState);
+    @Override
+    public void onBackPressed() {
+        if (!isShowingCategories) {
+            loadCategories();
         } else {
-            webView.loadUrl(LIVE_URL);
+            super.onBackPressed();
         }
     }
 
     @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        webView.saveState(outState);
+    protected void onStop() {
+        super.onStop();
+        if (player != null) {
+            player.pause();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (player != null) {
+            player.release();
+            player = null;
+        }
+    }
+
+    private interface JsonCallback {
+        void onSuccess(JSONObject json);
+        void onError(String message);
     }
 }
