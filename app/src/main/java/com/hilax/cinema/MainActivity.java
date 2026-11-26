@@ -37,7 +37,7 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
 
-    // Browser-la work aagura exact URL podunga (e.g., "http://hilax.vinokaran.my.id")
+    // Browser-la work aagura exact URL podunga (e.g., "http://hilax.vinokaran.my.id" or "https://hilax.vinokaran.my.id")
     private static final String BASE_URL = "http://hilax.vinokaran.my.id";
 
     private ExoPlayer player;
@@ -430,52 +430,72 @@ public class MainActivity extends AppCompatActivity {
 
     private void fetchJson(String endpoint, JsonCallback callback) {
         Executors.newSingleThreadExecutor().execute(() -> {
-            HttpURLConnection conn = null;
-            try {
-                URL urlObj = new URL(endpoint);
-                conn = (HttpURLConnection) urlObj.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("Accept", "application/json");
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Android)");
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(15000);
+            int maxAttempts = 2;
+            String lastError = "Network error";
 
-                int code = conn.getResponseCode();
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(
-                                code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream(),
-                                StandardCharsets.UTF_8
-                        )
-                );
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    sb.append(line);
-                }
-                reader.close();
+            for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+                HttpURLConnection conn = null;
+                try {
+                    URL urlObj = new URL(endpoint);
+                    conn = (HttpURLConnection) urlObj.openConnection();
+                    conn.setInstanceFollowRedirects(true);
+                    conn.setRequestMethod("GET");
+                    conn.setRequestProperty("Accept", "application/json");
+                    conn.setRequestProperty("Connection", "close");
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13)");
+                    conn.setConnectTimeout(15000);
+                    conn.setReadTimeout(15000);
 
-                String raw = sb.toString().trim();
-                if (code < 200 || code >= 300) {
-                    callback.onError("HTTP " + code);
+                    int code = conn.getResponseCode();
+                    BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(
+                                    code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream(),
+                                    StandardCharsets.UTF_8
+                            )
+                    );
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        sb.append(line);
+                    }
+                    reader.close();
+
+                    String raw = sb.toString().trim();
+                    if (code < 200 || code >= 300) {
+                        callback.onError("HTTP " + code);
+                        return;
+                    }
+
+                    if (raw.isEmpty()) {
+                        throw new Exception("Empty response body");
+                    }
+
+                    if (raw.startsWith("[")) {
+                        JSONObject wrapped = new JSONObject();
+                        wrapped.put("items", new JSONArray(raw));
+                        callback.onSuccess(wrapped);
+                    } else {
+                        callback.onSuccess(new JSONObject(raw));
+                    }
                     return;
-                }
-
-                if (raw.startsWith("[")) {
-                    JSONObject wrapped = new JSONObject();
-                    wrapped.put("items", new JSONArray(raw));
-                    callback.onSuccess(wrapped);
-                } else {
-                    callback.onSuccess(new JSONObject(raw));
-                }
-            } catch (Exception e) {
-                String errName = e.getClass().getSimpleName();
-                String errMsg = e.getMessage() != null ? e.getMessage() : "Unknown";
-                callback.onError(errName + " - " + errMsg);
-            } finally {
-                if (conn != null) {
-                    conn.disconnect();
+                } catch (Exception e) {
+                    String errName = e.getClass().getSimpleName();
+                    String errMsg = e.getMessage() != null ? e.getMessage() : "Unknown";
+                    lastError = errName + " - " + errMsg;
+                    if (attempt < maxAttempts) {
+                        try {
+                            Thread.sleep(600);
+                        } catch (InterruptedException ignored) {
+                        }
+                    }
+                } finally {
+                    if (conn != null) {
+                        conn.disconnect();
+                    }
                 }
             }
+
+            callback.onError(lastError);
         });
     }
 
