@@ -1,9 +1,19 @@
 package com.hilax.cinema;
 
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
-import android.widget.ArrayAdapter;
-import android.widget.ListView;
+import android.text.TextUtils;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -30,20 +40,138 @@ public class MainActivity extends AppCompatActivity {
     private static final String BASE_URL = "https://hilax.vinokaran.my.id:5000";
 
     private ExoPlayer player;
+    private FrameLayout playerContainer;
     private PlayerView playerView;
-    private ListView lvItems;
-    private TextView tvTitle;
+    private TextView tvHeader;
+    private TextView tvStatus;
+    private EditText etSearch;
+    private LinearLayout gridContainer;
 
     private boolean isShowingCategories = true;
+    private String currentSectionTitle = "CATEGORIES";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
 
-        tvTitle = findViewById(R.id.tvTitle);
-        playerView = findViewById(R.id.playerView);
-        lvItems = findViewById(R.id.lvItems);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.parseColor("#0B0B0C"));
+        root.setPadding(24, 24, 24, 24);
+
+        // Top Bar: HILAX CINEMA + Back/Home button
+        LinearLayout topBar = new LinearLayout(this);
+        topBar.setOrientation(LinearLayout.HORIZONTAL);
+        topBar.setGravity(Gravity.CENTER_VERTICAL);
+        topBar.setPadding(0, 0, 0, 16);
+
+        tvHeader = new TextView(this);
+        tvHeader.setText("HILAX CINEMA");
+        tvHeader.setTextColor(Color.parseColor("#E50914"));
+        tvHeader.setTextSize(22f);
+        tvHeader.setTypeface(Typeface.DEFAULT_BOLD);
+        LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        topBar.addView(tvHeader, headerParams);
+
+        Button btnHome = new Button(this);
+        btnHome.setText("HOME");
+        btnHome.setTextColor(Color.WHITE);
+        btnHome.setTextSize(12f);
+        btnHome.setBackgroundColor(Color.parseColor("#1F1F23"));
+        btnHome.setOnClickListener(v -> {
+            hidePlayer();
+            loadCategories();
+        });
+        topBar.addView(btnHome);
+        root.addView(topBar);
+
+        // Search Bar
+        LinearLayout searchRow = new LinearLayout(this);
+        searchRow.setOrientation(LinearLayout.HORIZONTAL);
+        searchRow.setPadding(0, 0, 0, 16);
+
+        etSearch = new EditText(this);
+        etSearch.setHint("Search movies, series...");
+        etSearch.setHintTextColor(Color.parseColor("#888888"));
+        etSearch.setTextColor(Color.WHITE);
+        etSearch.setBackgroundColor(Color.parseColor("#18181B"));
+        etSearch.setPadding(20, 16, 20, 16);
+        etSearch.setSingleLine(true);
+        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        searchParams.setMargins(0, 0, 12, 0);
+        searchRow.addView(etSearch, searchParams);
+
+        Button btnSearch = new Button(this);
+        btnSearch.setText("SEARCH");
+        btnSearch.setTextColor(Color.WHITE);
+        btnSearch.setBackgroundColor(Color.parseColor("#E50914"));
+        btnSearch.setOnClickListener(v -> {
+            String q = etSearch.getText().toString().trim();
+            if (!TextUtils.isEmpty(q)) {
+                hidePlayer();
+                loadSearch(q);
+            } else {
+                Toast.makeText(this, "Enter search text", Toast.LENGTH_SHORT).show();
+            }
+        });
+        searchRow.addView(btnSearch);
+        root.addView(searchRow);
+
+        // Player Container (HIDDEN until video is played)
+        playerContainer = new FrameLayout(this);
+        playerContainer.setBackgroundColor(Color.BLACK);
+        playerContainer.setVisibility(View.GONE);
+        LinearLayout.LayoutParams playerBoxParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 460
+        );
+        playerBoxParams.setMargins(0, 0, 0, 16);
+        root.addView(playerContainer, playerBoxParams);
+
+        playerView = new PlayerView(this);
+        playerView.setBackgroundColor(Color.BLACK);
+        playerContainer.addView(playerView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        Button btnClosePlayer = new Button(this);
+        btnClosePlayer.setText("✕ CLOSE");
+        btnClosePlayer.setTextColor(Color.WHITE);
+        btnClosePlayer.setTextSize(11f);
+        btnClosePlayer.setBackgroundColor(Color.parseColor("#B3000000"));
+        FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        closeParams.gravity = Gravity.TOP | Gravity.END;
+        closeParams.setMargins(8, 8, 8, 8);
+        playerContainer.addView(btnClosePlayer, closeParams);
+        btnClosePlayer.setOnClickListener(v -> hidePlayer());
+
+        // Section Title + Status
+        tvStatus = new TextView(this);
+        tvStatus.setText("CATEGORIES");
+        tvStatus.setTextColor(Color.parseColor("#E5E5E5"));
+        tvStatus.setTextSize(15f);
+        tvStatus.setTypeface(Typeface.DEFAULT_BOLD);
+        tvStatus.setPadding(0, 0, 0, 12);
+        root.addView(tvStatus);
+
+        // Scrollable Netflix-style 2-Column Card Grid
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setBackgroundColor(Color.parseColor("#0B0B0C"));
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+        );
+        root.addView(scrollView, scrollParams);
+
+        gridContainer = new LinearLayout(this);
+        gridContainer.setOrientation(LinearLayout.VERTICAL);
+        scrollView.addView(gridContainer);
+
+        setContentView(root);
 
         player = new ExoPlayer.Builder(this).build();
         playerView.setPlayer(player);
@@ -51,9 +179,17 @@ public class MainActivity extends AppCompatActivity {
         loadCategories();
     }
 
+    private void hidePlayer() {
+        if (player != null) {
+            player.pause();
+        }
+        playerContainer.setVisibility(View.GONE);
+    }
+
     private void loadCategories() {
         isShowingCategories = true;
-        runOnUiThread(() -> tvTitle.setText("HILAX CINEMA - CATEGORIES"));
+        currentSectionTitle = "CATEGORIES";
+        tvStatus.setText("LOADING CATEGORIES...");
 
         fetchJson(BASE_URL + "/api/categories", new JsonCallback() {
             @Override
@@ -63,30 +199,25 @@ public class MainActivity extends AppCompatActivity {
                 parseItems(json, titles, urls);
 
                 runOnUiThread(() -> {
-                    ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                            MainActivity.this,
-                            android.R.layout.simple_list_item_1,
-                            titles
-                    );
-                    lvItems.setAdapter(adapter);
-                    lvItems.setOnItemClickListener((parent, view, position, id) -> {
-                        if (position < urls.size()) {
-                            loadBrowse(titles.get(position), urls.get(position));
-                        }
-                    });
+                    tvStatus.setText("CATEGORIES (" + titles.size() + ")");
+                    renderGrid(titles, urls, true);
                 });
             }
 
             @Override
             public void onError(String message) {
-                showToast("Categories error: " + message);
+                runOnUiThread(() -> {
+                    tvStatus.setText("CATEGORIES");
+                    Toast.makeText(MainActivity.this, "API error: " + message, Toast.LENGTH_LONG).show();
+                });
             }
         });
     }
 
-    private void loadBrowse(String categoryTitle, String pageUrl) {
+    private void loadBrowse(String title, String pageUrl) {
         isShowingCategories = false;
-        runOnUiThread(() -> tvTitle.setText("HILAX CINEMA - " + categoryTitle));
+        currentSectionTitle = title;
+        tvStatus.setText("LOADING " + title.toUpperCase() + "...");
 
         String encoded = URLEncoder.encode(pageUrl == null ? "" : pageUrl, StandardCharsets.UTF_8);
         fetchJson(BASE_URL + "/api/browse?url=" + encoded, new JsonCallback() {
@@ -97,29 +228,131 @@ public class MainActivity extends AppCompatActivity {
                 parseItems(json, titles, urls);
 
                 runOnUiThread(() -> {
-                    ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                            MainActivity.this,
-                            android.R.layout.simple_list_item_1,
-                            titles
-                    );
-                    lvItems.setAdapter(adapter);
-                    lvItems.setOnItemClickListener((parent, view, position, id) -> {
-                        if (position < urls.size()) {
-                            resolveAndPlay(titles.get(position), urls.get(position));
-                        }
-                    });
+                    tvStatus.setText(title.toUpperCase() + " (" + titles.size() + ")");
+                    renderGrid(titles, urls, false);
                 });
             }
 
             @Override
             public void onError(String message) {
-                showToast("Browse error: " + message);
+                runOnUiThread(() -> {
+                    tvStatus.setText(title.toUpperCase());
+                    Toast.makeText(MainActivity.this, "Browse error: " + message, Toast.LENGTH_LONG).show();
+                });
             }
         });
     }
 
+    private void loadSearch(String query) {
+        isShowingCategories = false;
+        currentSectionTitle = "SEARCH: " + query;
+        tvStatus.setText("SEARCHING: " + query + "...");
+
+        String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
+        fetchJson(BASE_URL + "/api/search?q=" + encoded, new JsonCallback() {
+            @Override
+            public void onSuccess(JSONObject json) {
+                List<String> titles = new ArrayList<>();
+                List<String> urls = new ArrayList<>();
+                parseItems(json, titles, urls);
+
+                runOnUiThread(() -> {
+                    tvStatus.setText("RESULTS FOR \"" + query + "\" (" + titles.size() + ")");
+                    renderGrid(titles, urls, false);
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    tvStatus.setText("SEARCH: " + query);
+                    Toast.makeText(MainActivity.this, "Search error: " + message, Toast.LENGTH_LONG).show();
+                });
+            }
+        });
+    }
+
+    private void renderGrid(List<String> titles, List<String> urls, boolean isCategory) {
+        gridContainer.removeAllViews();
+
+        for (int i = 0; i < titles.size(); i += 2) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            rowParams.setMargins(0, 0, 0, 14);
+            row.setLayoutParams(rowParams);
+
+            for (int col = 0; col < 2; col++) {
+                int idx = i + col;
+                LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                        0, 220, 1f
+                );
+                if (col == 0) {
+                    cardParams.setMargins(0, 0, 7, 0);
+                } else {
+                    cardParams.setMargins(7, 0, 0, 0);
+                }
+
+                if (idx < titles.size()) {
+                    String itemTitle = titles.get(idx);
+                    String itemUrl = urls.get(idx);
+                    View card = createNetflixCard(itemTitle, isCategory);
+                    card.setLayoutParams(cardParams);
+                    card.setOnClickListener(v -> {
+                        if (isCategory) {
+                            loadBrowse(itemTitle, itemUrl);
+                        } else {
+                            resolveAndPlay(itemTitle, itemUrl);
+                        }
+                    });
+                    row.addView(card);
+                } else {
+                    View spacer = new View(this);
+                    spacer.setLayoutParams(cardParams);
+                    row.addView(spacer);
+                }
+            }
+
+            gridContainer.addView(row);
+        }
+    }
+
+    private View createNetflixCard(String title, boolean isCategory) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(18, 18, 18, 18);
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.parseColor("#16161A"));
+        bg.setCornerRadius(14f);
+        bg.setStroke(2, Color.parseColor("#2A2A32"));
+        card.setBackground(bg);
+
+        TextView badge = new TextView(this);
+        badge.setText(isCategory ? "COLLECTION" : "▶ PLAY");
+        badge.setTextColor(Color.parseColor("#E50914"));
+        badge.setTextSize(10f);
+        badge.setTypeface(Typeface.DEFAULT_BOLD);
+        badge.setPadding(0, 0, 0, 8);
+        card.addView(badge);
+
+        TextView tvItem = new TextView(this);
+        tvItem.setText(title);
+        tvItem.setTextColor(Color.WHITE);
+        tvItem.setTextSize(15f);
+        tvItem.setTypeface(Typeface.DEFAULT_BOLD);
+        tvItem.setMaxLines(3);
+        tvItem.setEllipsize(TextUtils.TruncateAt.END);
+        card.addView(tvItem);
+
+        return card;
+    }
+
     private void resolveAndPlay(String itemTitle, String itemUrl) {
-        showToast("Loading: " + itemTitle);
+        Toast.makeText(this, "Resolving: " + itemTitle, Toast.LENGTH_SHORT).show();
         String encoded = URLEncoder.encode(itemUrl == null ? "" : itemUrl, StandardCharsets.UTF_8);
         fetchJson(BASE_URL + "/api/resolve?url=" + encoded, new JsonCallback() {
             @Override
@@ -134,7 +367,7 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 if (streamUrl.isEmpty()) {
-                    showToast("Stream URL not found in response");
+                    showToast("Stream link not found");
                     return;
                 }
 
@@ -144,8 +377,12 @@ public class MainActivity extends AppCompatActivity {
 
                 final String finalUrl = streamUrl;
                 runOnUiThread(() -> {
-                    tvTitle.setText("PLAYING: " + itemTitle);
-                    playStream(finalUrl);
+                    playerContainer.setVisibility(View.VISIBLE);
+                    tvStatus.setText("NOW PLAYING: " + itemTitle);
+                    MediaItem mediaItem = MediaItem.fromUri(Uri.parse(finalUrl));
+                    player.setMediaItem(mediaItem);
+                    player.prepare();
+                    player.play();
                 });
             }
 
@@ -154,14 +391,6 @@ public class MainActivity extends AppCompatActivity {
                 showToast("Resolve error: " + message);
             }
         });
-    }
-
-    private void playStream(String streamUrl) {
-        if (player == null) return;
-        MediaItem mediaItem = MediaItem.fromUri(Uri.parse(streamUrl));
-        player.setMediaItem(mediaItem);
-        player.prepare();
-        player.play();
     }
 
     private void parseItems(JSONObject json, List<String> titles, List<String> urls) {
@@ -215,7 +444,9 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        if (!isShowingCategories) {
+        if (playerContainer != null && playerContainer.getVisibility() == View.VISIBLE) {
+            hidePlayer();
+        } else if (!isShowingCategories) {
             loadCategories();
         } else {
             super.onBackPressed();
