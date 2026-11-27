@@ -70,7 +70,6 @@ public class MainActivity extends AppCompatActivity {
             root.setBackgroundColor(Color.parseColor("#0B0B0C"));
             root.setPadding(24, 24, 24, 24);
 
-            // Top Bar
             LinearLayout topBar = new LinearLayout(this);
             topBar.setOrientation(LinearLayout.HORIZONTAL);
             topBar.setGravity(Gravity.CENTER_VERTICAL);
@@ -98,7 +97,6 @@ public class MainActivity extends AppCompatActivity {
             topBar.addView(btnHome);
             root.addView(topBar);
 
-            // Dual-Site Search Bar (Movies & Web Series)
             LinearLayout searchRow = new LinearLayout(this);
             searchRow.setOrientation(LinearLayout.HORIZONTAL);
             searchRow.setPadding(0, 0, 0, 14);
@@ -132,7 +130,6 @@ public class MainActivity extends AppCompatActivity {
             searchRow.addView(btnSearch);
             root.addView(searchRow);
 
-            // Advanced Player Section
             playerSection = new LinearLayout(this);
             playerSection.setOrientation(LinearLayout.VERTICAL);
             playerSection.setBackgroundColor(Color.parseColor("#111115"));
@@ -150,26 +147,6 @@ public class MainActivity extends AppCompatActivity {
                     ViewGroup.LayoutParams.MATCH_PARENT, 460
             ));
 
-            playerView = new PlayerView(this);
-            playerView.setBackgroundColor(Color.BLACK);
-            playerBox.addView(playerView, new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
-            ));
-
-            Button btnClosePlayer = new Button(this);
-            btnClosePlayer.setText("✕ CLOSE");
-            btnClosePlayer.setTextColor(Color.WHITE);
-            btnClosePlayer.setTextSize(11f);
-            btnClosePlayer.setBackgroundColor(Color.parseColor("#B3000000"));
-            FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            );
-            closeParams.gravity = Gravity.TOP | Gravity.END;
-            closeParams.setMargins(8, 8, 8, 8);
-            playerBox.addView(btnClosePlayer, closeParams);
-            btnClosePlayer.setOnClickListener(v -> hidePlayer());
-
-            // Player Extra Controls Row (-10s, +10s, Speed)
             LinearLayout controlsRow = new LinearLayout(this);
             controlsRow.setOrientation(LinearLayout.HORIZONTAL);
             controlsRow.setPadding(0, 10, 0, 2);
@@ -240,7 +217,6 @@ public class MainActivity extends AppCompatActivity {
             playerSection.addView(controlsRow);
             root.addView(playerSection);
 
-            // Section Status
             tvStatus = new TextView(this);
             tvStatus.setText("CATEGORIES");
             tvStatus.setTextColor(Color.parseColor("#E5E5E5"));
@@ -249,7 +225,6 @@ public class MainActivity extends AppCompatActivity {
             tvStatus.setPadding(0, 0, 0, 12);
             root.addView(tvStatus);
 
-            // Scrollable Grid
             ScrollView scrollView = new ScrollView(this);
             scrollView.setBackgroundColor(Color.parseColor("#0B0B0C"));
             LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
@@ -277,10 +252,24 @@ public class MainActivity extends AppCompatActivity {
         if (playerView.getParent() instanceof ViewGroup) {
             ((ViewGroup) playerView.getParent()).removeView(playerView);
         }
-        if (playerBox != null && playerView.getParent() == null) {
-            playerBox.addView(playerView, 0, new FrameLayout.LayoutParams(
+        if (playerBox != null) {
+            playerBox.removeAllViews();
+            playerBox.addView(playerView, new FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
             ));
+
+            Button btnClosePlayer = new Button(this);
+            btnClosePlayer.setText("✕ CLOSE");
+            btnClosePlayer.setTextColor(Color.WHITE);
+            btnClosePlayer.setTextSize(11f);
+            btnClosePlayer.setBackgroundColor(Color.parseColor("#B3000000"));
+            FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            closeParams.gravity = Gravity.TOP | Gravity.END;
+            closeParams.setMargins(8, 8, 8, 8);
+            playerBox.addView(btnClosePlayer, closeParams);
+            btnClosePlayer.setOnClickListener(v -> hidePlayer());
         }
         if (player == null) {
             player = new ExoPlayer.Builder(this).build();
