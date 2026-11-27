@@ -239,8 +239,8 @@ public class MainActivity extends AppCompatActivity {
             setContentView(root);
 
             loadCategories();
-        } catch (Exception e) {
-            Toast.makeText(this, "Init error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        } catch (Throwable t) {
+            Toast.makeText(this, "Init error: " + t.getClass().getSimpleName() + ": " + t.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
 
