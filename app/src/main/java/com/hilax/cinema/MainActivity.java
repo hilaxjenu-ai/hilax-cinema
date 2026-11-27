@@ -50,6 +50,7 @@ public class MainActivity extends AppCompatActivity {
 
     private ExoPlayer player;
     private LinearLayout playerSection;
+    private FrameLayout playerBox;
     private PlayerView playerView;
     private Button btnSpeed;
     private TextView tvStatus;
@@ -143,7 +144,7 @@ public class MainActivity extends AppCompatActivity {
             secParams.setMargins(0, 0, 0, 14);
             root.addView(playerSection, secParams);
 
-            FrameLayout playerBox = new FrameLayout(this);
+            playerBox = new FrameLayout(this);
             playerBox.setBackgroundColor(Color.BLACK);
             playerSection.addView(playerBox, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, 460
@@ -269,9 +270,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void ensurePlayer() {
+        if (playerView == null) {
+            playerView = new PlayerView(this);
+            playerView.setBackgroundColor(Color.BLACK);
+        }
+        if (playerView.getParent() instanceof ViewGroup) {
+            ((ViewGroup) playerView.getParent()).removeView(playerView);
+        }
+        if (playerBox != null && playerView.getParent() == null) {
+            playerBox.addView(playerView, 0, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+            ));
+        }
         if (player == null) {
             player = new ExoPlayer.Builder(this).build();
-            playerView.setPlayer(player);
             player.addListener(new Player.Listener() {
                 @Override
                 public void onPlayerError(PlaybackException error) {
@@ -279,6 +291,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         }
+        playerView.setPlayer(player);
     }
 
     private void playStream(String title, String streamUrl) {
