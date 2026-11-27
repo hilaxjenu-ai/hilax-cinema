@@ -249,8 +249,9 @@ public class MainActivity extends AppCompatActivity {
             playerView = new PlayerView(this);
             playerView.setBackgroundColor(Color.BLACK);
         }
-        if (playerView.getParent() instanceof ViewGroup) {
-            ((ViewGroup) playerView.getParent()).removeView(playerView);
+        ViewGroup oldParent = (ViewGroup) playerView.getParent();
+        if (oldParent != null) {
+            oldParent.removeView(playerView);
         }
         if (playerBox != null) {
             playerBox.removeAllViews();
