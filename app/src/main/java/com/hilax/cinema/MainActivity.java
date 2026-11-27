@@ -25,25 +25,29 @@ import androidx.media3.ui.PlayerView;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class MainActivity extends AppCompatActivity {
 
-    // Browser-la work aagura exact URL podunga (e.g., "http://hilax.vinokaran.my.id" or "https://hilax.vinokaran.my.id")
     private static final String BASE_URL = "https://hilax.vinokaran.my.id:5000";
+
+    private final OkHttpClient httpClient = new OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .build();
 
     private ExoPlayer player;
     private FrameLayout playerContainer;
     private PlayerView playerView;
-    private TextView tvHeader;
     private TextView tvStatus;
     private EditText etSearch;
     private LinearLayout gridContainer;
@@ -59,13 +63,12 @@ public class MainActivity extends AppCompatActivity {
         root.setBackgroundColor(Color.parseColor("#0B0B0C"));
         root.setPadding(24, 24, 24, 24);
 
-        // Top Bar: HILAX CINEMA + HOME
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
         topBar.setPadding(0, 0, 0, 16);
 
-        tvHeader = new TextView(this);
+        TextView tvHeader = new TextView(this);
         tvHeader.setText("HILAX CINEMA");
         tvHeader.setTextColor(Color.parseColor("#E50914"));
         tvHeader.setTextSize(22f);
@@ -87,7 +90,6 @@ public class MainActivity extends AppCompatActivity {
         topBar.addView(btnHome);
         root.addView(topBar);
 
-        // Search Bar
         LinearLayout searchRow = new LinearLayout(this);
         searchRow.setOrientation(LinearLayout.HORIZONTAL);
         searchRow.setPadding(0, 0, 0, 16);
@@ -121,7 +123,6 @@ public class MainActivity extends AppCompatActivity {
         searchRow.addView(btnSearch);
         root.addView(searchRow);
 
-        // Player Container (Hidden until stream plays)
         playerContainer = new FrameLayout(this);
         playerContainer.setBackgroundColor(Color.BLACK);
         playerContainer.setVisibility(View.GONE);
@@ -150,7 +151,6 @@ public class MainActivity extends AppCompatActivity {
         playerContainer.addView(btnClosePlayer, closeParams);
         btnClosePlayer.setOnClickListener(v -> hidePlayer());
 
-        // Section Title
         tvStatus = new TextView(this);
         tvStatus.setText("CATEGORIES");
         tvStatus.setTextColor(Color.parseColor("#E5E5E5"));
@@ -159,7 +159,6 @@ public class MainActivity extends AppCompatActivity {
         tvStatus.setPadding(0, 0, 0, 12);
         root.addView(tvStatus);
 
-        // Scrollable 2-Column Netflix-style Grid
         ScrollView scrollView = new ScrollView(this);
         scrollView.setBackgroundColor(Color.parseColor("#0B0B0C"));
         LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
@@ -195,11 +194,12 @@ public class MainActivity extends AppCompatActivity {
             public void onSuccess(JSONObject json) {
                 List<String> titles = new ArrayList<>();
                 List<String> urls = new ArrayList<>();
-                parseItems(json, titles, urls);
+                List<Boolean> isPageList = new ArrayList<>();
+                parseBrowseOrCategories(json, titles, urls, isPageList, true);
 
                 runOnUiThread(() -> {
                     tvStatus.setText("CATEGORIES (" + titles.size() + ")");
-                    renderGrid(titles, urls, true);
+                    renderGrid(titles, urls, isPageList, true);
                 });
             }
 
@@ -218,7 +218,7 @@ public class MainActivity extends AppCompatActivity {
             runOnUiThread(() -> {
                 isShowingCategories = false;
                 tvStatus.setText(title.toUpperCase());
-                renderGrid(new ArrayList<>(), new ArrayList<>(), false);
+                renderGrid(new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), false);
                 Toast.makeText(MainActivity.this, "Special section: " + title, Toast.LENGTH_SHORT).show();
             });
             return;
@@ -233,11 +233,15 @@ public class MainActivity extends AppCompatActivity {
             public void onSuccess(JSONObject json) {
                 List<String> titles = new ArrayList<>();
                 List<String> urls = new ArrayList<>();
-                parseItems(json, titles, urls);
+                List<Boolean> isPageList = new ArrayList<>();
+                parseBrowseOrCategories(json, titles, urls, isPageList, false);
 
                 runOnUiThread(() -> {
                     tvStatus.setText(title.toUpperCase() + " (" + titles.size() + ")");
-                    renderGrid(titles, urls, false);
+                    renderGrid(titles, urls, isPageList, false);
+                    if (titles.isEmpty()) {
+                        Toast.makeText(MainActivity.this, "No items found in " + title, Toast.LENGTH_SHORT).show();
+                    }
                 });
             }
 
@@ -261,11 +265,12 @@ public class MainActivity extends AppCompatActivity {
             public void onSuccess(JSONObject json) {
                 List<String> titles = new ArrayList<>();
                 List<String> urls = new ArrayList<>();
-                parseItems(json, titles, urls);
+                List<Boolean> isPageList = new ArrayList<>();
+                parseBrowseOrCategories(json, titles, urls, isPageList, false);
 
                 runOnUiThread(() -> {
                     tvStatus.setText("RESULTS FOR \"" + query + "\" (" + titles.size() + ")");
-                    renderGrid(titles, urls, false);
+                    renderGrid(titles, urls, isPageList, false);
                 });
             }
 
@@ -279,7 +284,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void renderGrid(List<String> titles, List<String> urls, boolean isCategory) {
+    private void renderGrid(List<String> titles, List<String> urls, List<Boolean> isPageList, boolean isCategory) {
         gridContainer.removeAllViews();
 
         for (int i = 0; i < titles.size(); i += 2) {
@@ -305,10 +310,11 @@ public class MainActivity extends AppCompatActivity {
                 if (idx < titles.size()) {
                     String itemTitle = titles.get(idx);
                     String itemUrl = urls.get(idx);
-                    View card = createNetflixCard(itemTitle, isCategory);
+                    boolean isPage = idx < isPageList.size() && isPageList.get(idx);
+                    View card = createNetflixCard(itemTitle, isCategory, isPage);
                     card.setLayoutParams(cardParams);
                     card.setOnClickListener(v -> {
-                        if (isCategory) {
+                        if (isCategory || isPage) {
                             loadBrowse(itemTitle, itemUrl);
                         } else {
                             resolveAndPlay(itemTitle, itemUrl);
@@ -326,7 +332,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private View createNetflixCard(String title, boolean isCategory) {
+    private View createNetflixCard(String title, boolean isCategory, boolean isPage) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
@@ -339,7 +345,13 @@ public class MainActivity extends AppCompatActivity {
         card.setBackground(bg);
 
         TextView badge = new TextView(this);
-        badge.setText(isCategory ? "COLLECTION" : "▶ PLAY");
+        if (isCategory) {
+            badge.setText("COLLECTION");
+        } else if (isPage) {
+            badge.setText("NEXT PAGE");
+        } else {
+            badge.setText("▶ PLAY");
+        }
         badge.setTextColor(Color.parseColor("#E50914"));
         badge.setTextSize(10f);
         badge.setTypeface(Typeface.DEFAULT_BOLD);
@@ -347,7 +359,7 @@ public class MainActivity extends AppCompatActivity {
         card.addView(badge);
 
         TextView tvItem = new TextView(this);
-        tvItem.setText(title);
+        tvItem.setText(isPage ? "Page " + title : title);
         tvItem.setTextColor(Color.WHITE);
         tvItem.setTextSize(15f);
         tvItem.setTypeface(Typeface.DEFAULT_BOLD);
@@ -400,29 +412,44 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void parseItems(JSONObject json, List<String> titles, List<String> urls) {
-        JSONArray items = json.optJSONArray("items");
-        if (items == null) {
-            items = json.optJSONArray("categories");
+    private void parseBrowseOrCategories(JSONObject json, List<String> titles, List<String> urls, List<Boolean> isPageList, boolean categoryMode) {
+        JSONArray entries = json.optJSONArray("entries");
+        if (entries == null) {
+            entries = json.optJSONArray("items");
         }
-        if (items == null) {
-            items = json.optJSONArray("results");
+        if (entries == null) {
+            entries = json.optJSONArray("categories");
         }
-        if (items == null && json.has("data") && json.optJSONObject("data") != null) {
-            JSONObject data = json.optJSONObject("data");
-            items = data.optJSONArray("items");
-            if (items == null) {
-                items = data.optJSONArray("categories");
-            }
+        if (entries == null) {
+            entries = json.optJSONArray("results");
         }
-        if (items != null) {
-            for (int i = 0; i < items.length(); i++) {
-                JSONObject obj = items.optJSONObject(i);
+        if (entries != null) {
+            for (int i = 0; i < entries.length(); i++) {
+                JSONObject obj = entries.optJSONObject(i);
                 if (obj != null) {
                     String title = obj.optString("title", obj.optString("name", "Item " + (i + 1)));
                     String url = obj.optString("url", obj.optString("link", ""));
                     titles.add(title);
                     urls.add(url);
+                    isPageList.add(false);
+                }
+            }
+        }
+
+        if (!categoryMode) {
+            JSONArray pages = json.optJSONArray("pages");
+            if (pages != null) {
+                for (int i = 0; i < pages.length(); i++) {
+                    JSONObject p = pages.optJSONObject(i);
+                    if (p != null) {
+                        String pageTitle = p.optString("title", "");
+                        String pageUrl = p.optString("url", "");
+                        if (!pageTitle.isEmpty() && !pageUrl.isEmpty()) {
+                            titles.add(pageTitle);
+                            urls.add(pageUrl);
+                            isPageList.add(true);
+                        }
+                    }
                 }
             }
         }
@@ -430,72 +457,37 @@ public class MainActivity extends AppCompatActivity {
 
     private void fetchJson(String endpoint, JsonCallback callback) {
         Executors.newSingleThreadExecutor().execute(() -> {
-            int maxAttempts = 2;
-            String lastError = "Network error";
+            try {
+                Request request = new Request.Builder()
+                        .url(endpoint)
+                        .header("Accept", "application/json")
+                        .header("Connection", "close")
+                        .header("User-Agent", "Mozilla/5.0 (Linux; Android 13)")
+                        .build();
 
-            for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-                HttpURLConnection conn = null;
-                try {
-                    URL urlObj = new URL(endpoint);
-                    conn = (HttpURLConnection) urlObj.openConnection();
-                    conn.setInstanceFollowRedirects(true);
-                    conn.setRequestMethod("GET");
-                    conn.setRequestProperty("Accept", "application/json");
-                    conn.setRequestProperty("Connection", "close");
-                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13)");
-                    conn.setConnectTimeout(15000);
-                    conn.setReadTimeout(15000);
-
-                    int code = conn.getResponseCode();
-                    BufferedReader reader = new BufferedReader(
-                            new InputStreamReader(
-                                    code >= 200 && code < 300 ? conn.getInputStream() : conn.getErrorStream(),
-                                    StandardCharsets.UTF_8
-                            )
-                    );
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        sb.append(line);
-                    }
-                    reader.close();
-
-                    String raw = sb.toString().trim();
-                    if (code < 200 || code >= 300) {
-                        callback.onError("HTTP " + code);
+                try (Response response = httpClient.newCall(request).execute()) {
+                    String raw = response.body() != null ? response.body().string().trim() : "";
+                    if (!response.isSuccessful()) {
+                        callback.onError("HTTP " + response.code());
                         return;
                     }
-
                     if (raw.isEmpty()) {
-                        throw new Exception("Empty response body");
+                        callback.onError("Empty response body");
+                        return;
                     }
-
                     if (raw.startsWith("[")) {
                         JSONObject wrapped = new JSONObject();
-                        wrapped.put("items", new JSONArray(raw));
+                        wrapped.put("entries", new JSONArray(raw));
                         callback.onSuccess(wrapped);
                     } else {
                         callback.onSuccess(new JSONObject(raw));
                     }
-                    return;
-                } catch (Exception e) {
-                    String errName = e.getClass().getSimpleName();
-                    String errMsg = e.getMessage() != null ? e.getMessage() : "Unknown";
-                    lastError = errName + " - " + errMsg;
-                    if (attempt < maxAttempts) {
-                        try {
-                            Thread.sleep(600);
-                        } catch (InterruptedException ignored) {
-                        }
-                    }
-                } finally {
-                    if (conn != null) {
-                        conn.disconnect();
-                    }
                 }
+            } catch (Exception e) {
+                String errName = e.getClass().getSimpleName();
+                String errMsg = e.getMessage() != null ? e.getMessage() : "Unknown";
+                callback.onError(errName + " - " + errMsg);
             }
-
-            callback.onError(lastError);
         });
     }
 
