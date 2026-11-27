@@ -38,7 +38,7 @@ import java.util.concurrent.Executors;
 public class MainActivity extends AppCompatActivity {
 
     // Browser-la work aagura exact URL podunga (e.g., "http://hilax.vinokaran.my.id" or "https://hilax.vinokaran.my.id")
-    private static final String BASE_URL = "http://hilax.vinokaran.my.id";
+    private static final String BASE_URL = "https://hilax.vinokaran.my.id:5000";
 
     private ExoPlayer player;
     private FrameLayout playerContainer;
