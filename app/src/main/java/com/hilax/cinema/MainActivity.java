@@ -407,7 +407,11 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onError(String message) {
-                showToast("Resolve error: " + message);
+                if (message != null && message.contains("404") && itemUrl != null && itemUrl.startsWith("http")) {
+                    loadBrowse(itemTitle, itemUrl);
+                } else {
+                    showToast("Resolve error: " + message);
+                }
             }
         });
     }
