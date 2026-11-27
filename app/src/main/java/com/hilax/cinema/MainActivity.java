@@ -19,6 +19,8 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.PlayerView;
 
@@ -28,6 +30,7 @@ import org.json.JSONObject;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -42,17 +45,19 @@ public class MainActivity extends AppCompatActivity {
 
     private final OkHttpClient httpClient = new OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(25, TimeUnit.SECONDS)
             .build();
 
     private ExoPlayer player;
-    private FrameLayout playerContainer;
+    private LinearLayout playerSection;
     private PlayerView playerView;
+    private Button btnSpeed;
     private TextView tvStatus;
     private EditText etSearch;
     private LinearLayout gridContainer;
 
     private boolean isShowingCategories = true;
+    private float currentSpeed = 1.0f;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,10 +68,11 @@ public class MainActivity extends AppCompatActivity {
         root.setBackgroundColor(Color.parseColor("#0B0B0C"));
         root.setPadding(24, 24, 24, 24);
 
+        // Top Bar
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
-        topBar.setPadding(0, 0, 0, 16);
+        topBar.setPadding(0, 0, 0, 14);
 
         TextView tvHeader = new TextView(this);
         tvHeader.setText("HILAX CINEMA");
@@ -90,12 +96,13 @@ public class MainActivity extends AppCompatActivity {
         topBar.addView(btnHome);
         root.addView(topBar);
 
+        // Dual-Site Search Bar (Movies & Web Series)
         LinearLayout searchRow = new LinearLayout(this);
         searchRow.setOrientation(LinearLayout.HORIZONTAL);
-        searchRow.setPadding(0, 0, 0, 16);
+        searchRow.setPadding(0, 0, 0, 14);
 
         etSearch = new EditText(this);
-        etSearch.setHint("Search movies, series...");
+        etSearch.setHint("Search movies, web series (2 sites)...");
         etSearch.setHintTextColor(Color.parseColor("#888888"));
         etSearch.setTextColor(Color.WHITE);
         etSearch.setBackgroundColor(Color.parseColor("#18181B"));
@@ -117,24 +124,33 @@ public class MainActivity extends AppCompatActivity {
                 hidePlayer();
                 loadSearch(q);
             } else {
-                Toast.makeText(this, "Enter search text", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Enter movie or web series name", Toast.LENGTH_SHORT).show();
             }
         });
         searchRow.addView(btnSearch);
         root.addView(searchRow);
 
-        playerContainer = new FrameLayout(this);
-        playerContainer.setBackgroundColor(Color.BLACK);
-        playerContainer.setVisibility(View.GONE);
-        LinearLayout.LayoutParams playerBoxParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 460
+        // Advanced Player Section
+        playerSection = new LinearLayout(this);
+        playerSection.setOrientation(LinearLayout.VERTICAL);
+        playerSection.setBackgroundColor(Color.parseColor("#111115"));
+        playerSection.setPadding(10, 10, 10, 10);
+        playerSection.setVisibility(View.GONE);
+        LinearLayout.LayoutParams secParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         );
-        playerBoxParams.setMargins(0, 0, 0, 16);
-        root.addView(playerContainer, playerBoxParams);
+        secParams.setMargins(0, 0, 0, 14);
+        root.addView(playerSection, secParams);
+
+        FrameLayout playerBox = new FrameLayout(this);
+        playerBox.setBackgroundColor(Color.BLACK);
+        playerSection.addView(playerBox, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 460
+        ));
 
         playerView = new PlayerView(this);
         playerView.setBackgroundColor(Color.BLACK);
-        playerContainer.addView(playerView, new FrameLayout.LayoutParams(
+        playerBox.addView(playerView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
@@ -148,9 +164,80 @@ public class MainActivity extends AppCompatActivity {
         );
         closeParams.gravity = Gravity.TOP | Gravity.END;
         closeParams.setMargins(8, 8, 8, 8);
-        playerContainer.addView(btnClosePlayer, closeParams);
+        playerBox.addView(btnClosePlayer, closeParams);
         btnClosePlayer.setOnClickListener(v -> hidePlayer());
 
+        // Player Extra Controls Row (-10s, +10s, Speed)
+        LinearLayout controlsRow = new LinearLayout(this);
+        controlsRow.setOrientation(LinearLayout.HORIZONTAL);
+        controlsRow.setPadding(0, 10, 0, 2);
+
+        Button btnRewind = new Button(this);
+        btnRewind.setText("⏪ -10s");
+        btnRewind.setTextColor(Color.WHITE);
+        btnRewind.setTextSize(11f);
+        btnRewind.setBackgroundColor(Color.parseColor("#23232A"));
+        LinearLayout.LayoutParams ctrlParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        ctrlParams.setMargins(0, 0, 8, 0);
+        controlsRow.addView(btnRewind, ctrlParams);
+        btnRewind.setOnClickListener(v -> {
+            if (player != null) {
+                long target = Math.max(0L, player.getCurrentPosition() - 10000L);
+                player.seekTo(target);
+            }
+        });
+
+        Button btnForward = new Button(this);
+        btnForward.setText("+10s ⏩");
+        btnForward.setTextColor(Color.WHITE);
+        btnForward.setTextSize(11f);
+        btnForward.setBackgroundColor(Color.parseColor("#23232A"));
+        LinearLayout.LayoutParams fwdParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        );
+        fwdParams.setMargins(0, 0, 8, 0);
+        controlsRow.addView(btnForward, fwdParams);
+        btnForward.setOnClickListener(v -> {
+            if (player != null) {
+                long dur = player.getDuration();
+                long nextPos = player.getCurrentPosition() + 10000L;
+                if (dur > 0 && nextPos > dur) {
+                    nextPos = dur;
+                }
+                player.seekTo(nextPos);
+            }
+        });
+
+        btnSpeed = new Button(this);
+        btnSpeed.setText("1.0x");
+        btnSpeed.setTextColor(Color.parseColor("#E50914"));
+        btnSpeed.setTextSize(11f);
+        btnSpeed.setTypeface(Typeface.DEFAULT_BOLD);
+        btnSpeed.setBackgroundColor(Color.parseColor("#23232A"));
+        controlsRow.addView(btnSpeed, new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+        ));
+        btnSpeed.setOnClickListener(v -> {
+            if (player == null) return;
+            if (currentSpeed == 1.0f) {
+                currentSpeed = 1.25f;
+            } else if (currentSpeed == 1.25f) {
+                currentSpeed = 1.5f;
+            } else if (currentSpeed == 1.5f) {
+                currentSpeed = 2.0f;
+            } else {
+                currentSpeed = 1.0f;
+            }
+            player.setPlaybackSpeed(currentSpeed);
+            btnSpeed.setText(currentSpeed + "x");
+        });
+
+        playerSection.addView(controlsRow);
+        root.addView(playerSection);
+
+        // Section Status
         tvStatus = new TextView(this);
         tvStatus.setText("CATEGORIES");
         tvStatus.setTextColor(Color.parseColor("#E5E5E5"));
@@ -159,6 +246,7 @@ public class MainActivity extends AppCompatActivity {
         tvStatus.setPadding(0, 0, 0, 12);
         root.addView(tvStatus);
 
+        // Scrollable Grid
         ScrollView scrollView = new ScrollView(this);
         scrollView.setBackgroundColor(Color.parseColor("#0B0B0C"));
         LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
@@ -174,6 +262,12 @@ public class MainActivity extends AppCompatActivity {
 
         player = new ExoPlayer.Builder(this).build();
         playerView.setPlayer(player);
+        player.addListener(new Player.Listener() {
+            @Override
+            public void onPlayerError(PlaybackException error) {
+                showToast("Player error: " + error.getErrorCodeName());
+            }
+        });
 
         loadCategories();
     }
@@ -182,7 +276,7 @@ public class MainActivity extends AppCompatActivity {
         if (player != null) {
             player.pause();
         }
-        playerContainer.setVisibility(View.GONE);
+        playerSection.setVisibility(View.GONE);
     }
 
     private void loadCategories() {
@@ -195,11 +289,14 @@ public class MainActivity extends AppCompatActivity {
                 List<String> titles = new ArrayList<>();
                 List<String> urls = new ArrayList<>();
                 List<Boolean> isPageList = new ArrayList<>();
-                parseBrowseOrCategories(json, titles, urls, isPageList, true);
+                extractAllItemsRecursive(json, titles, urls, isPageList, false);
 
                 runOnUiThread(() -> {
                     tvStatus.setText("CATEGORIES (" + titles.size() + ")");
                     renderGrid(titles, urls, isPageList, true);
+                    if (titles.isEmpty()) {
+                        Toast.makeText(MainActivity.this, "No categories returned", Toast.LENGTH_SHORT).show();
+                    }
                 });
             }
 
@@ -234,7 +331,7 @@ public class MainActivity extends AppCompatActivity {
                 List<String> titles = new ArrayList<>();
                 List<String> urls = new ArrayList<>();
                 List<Boolean> isPageList = new ArrayList<>();
-                parseBrowseOrCategories(json, titles, urls, isPageList, false);
+                extractAllItemsRecursive(json, titles, urls, isPageList, true);
 
                 runOnUiThread(() -> {
                     tvStatus.setText(title.toUpperCase() + " (" + titles.size() + ")");
@@ -257,20 +354,52 @@ public class MainActivity extends AppCompatActivity {
 
     private void loadSearch(String query) {
         isShowingCategories = false;
-        runOnUiThread(() -> tvStatus.setText("SEARCHING: " + query + "..."));
+        runOnUiThread(() -> tvStatus.setText("SEARCHING ALL SITES: " + query + "..."));
 
         String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
-        fetchJson(BASE_URL + "/api/search?q=" + encoded, new JsonCallback() {
+        String url1 = BASE_URL + "/api/search?q=" + encoded + "&all=1";
+        String url2 = BASE_URL + "/api/search?query=" + encoded;
+
+        fetchJson(url1, new JsonCallback() {
             @Override
             public void onSuccess(JSONObject json) {
                 List<String> titles = new ArrayList<>();
                 List<String> urls = new ArrayList<>();
                 List<Boolean> isPageList = new ArrayList<>();
-                parseBrowseOrCategories(json, titles, urls, isPageList, false);
+                extractAllItemsRecursive(json, titles, urls, isPageList, false);
 
-                runOnUiThread(() -> {
-                    tvStatus.setText("RESULTS FOR \"" + query + "\" (" + titles.size() + ")");
-                    renderGrid(titles, urls, isPageList, false);
+                if (!titles.isEmpty()) {
+                    runOnUiThread(() -> {
+                        tvStatus.setText("SEARCH \"" + query + "\" (" + titles.size() + ")");
+                        renderGrid(titles, urls, isPageList, false);
+                    });
+                    return;
+                }
+
+                fetchJson(url2, new JsonCallback() {
+                    @Override
+                    public void onSuccess(JSONObject json2) {
+                        List<String> t2 = new ArrayList<>();
+                        List<String> u2 = new ArrayList<>();
+                        List<Boolean> p2 = new ArrayList<>();
+                        extractAllItemsRecursive(json2, t2, u2, p2, false);
+
+                        runOnUiThread(() -> {
+                            tvStatus.setText("SEARCH \"" + query + "\" (" + t2.size() + ")");
+                            renderGrid(t2, u2, p2, false);
+                            if (t2.isEmpty()) {
+                                Toast.makeText(MainActivity.this, "No movies or web series found", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        runOnUiThread(() -> {
+                            tvStatus.setText("SEARCH: " + query);
+                            Toast.makeText(MainActivity.this, "Search error: " + message, Toast.LENGTH_LONG).show();
+                        });
+                    }
                 });
             }
 
@@ -282,6 +411,52 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         });
+    }
+
+    private void extractAllItemsRecursive(
+            Object node,
+            List<String> titles,
+            List<String> urls,
+            List<Boolean> isPageList,
+            boolean includePages
+    ) {
+        if (node == null) return;
+
+        if (node instanceof JSONArray) {
+            JSONArray arr = (JSONArray) node;
+            for (int i = 0; i < arr.length(); i++) {
+                extractAllItemsRecursive(arr.opt(i), titles, urls, isPageList, includePages);
+            }
+            return;
+        }
+
+        if (node instanceof JSONObject) {
+            JSONObject obj = (JSONObject) node;
+            boolean hasTitle = obj.has("title") || obj.has("name");
+            boolean hasUrl = obj.has("url") || obj.has("link") || obj.has("stream_url");
+            boolean isPagination = obj.optBoolean("is_pagination", false);
+
+            if (hasTitle && hasUrl) {
+                if (!isPagination || includePages) {
+                    String title = obj.optString("title", obj.optString("name", "Item"));
+                    String url = obj.optString("url", obj.optString("link", obj.optString("stream_url", "")));
+                    if (!title.isEmpty()) {
+                        titles.add(title);
+                        urls.add(url);
+                        isPageList.add(isPagination);
+                    }
+                }
+            }
+
+            Iterator<String> keys = obj.keys();
+            while (keys.hasNext()) {
+                String k = keys.next();
+                Object val = obj.opt(k);
+                if (val instanceof JSONArray || val instanceof JSONObject) {
+                    extractAllItemsRecursive(val, titles, urls, isPageList, includePages);
+                }
+            }
+        }
     }
 
     private void renderGrid(List<String> titles, List<String> urls, List<Boolean> isPageList, boolean isCategory) {
@@ -396,10 +571,11 @@ public class MainActivity extends AppCompatActivity {
 
                 final String finalUrl = streamUrl;
                 runOnUiThread(() -> {
-                    playerContainer.setVisibility(View.VISIBLE);
+                    playerSection.setVisibility(View.VISIBLE);
                     tvStatus.setText("NOW PLAYING: " + itemTitle);
                     MediaItem mediaItem = MediaItem.fromUri(Uri.parse(finalUrl));
                     player.setMediaItem(mediaItem);
+                    player.setPlaybackSpeed(currentSpeed);
                     player.prepare();
                     player.play();
                 });
@@ -414,49 +590,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-    }
-
-    private void parseBrowseOrCategories(JSONObject json, List<String> titles, List<String> urls, List<Boolean> isPageList, boolean categoryMode) {
-        JSONArray entries = json.optJSONArray("entries");
-        if (entries == null) {
-            entries = json.optJSONArray("items");
-        }
-        if (entries == null) {
-            entries = json.optJSONArray("categories");
-        }
-        if (entries == null) {
-            entries = json.optJSONArray("results");
-        }
-        if (entries != null) {
-            for (int i = 0; i < entries.length(); i++) {
-                JSONObject obj = entries.optJSONObject(i);
-                if (obj != null) {
-                    String title = obj.optString("title", obj.optString("name", "Item " + (i + 1)));
-                    String url = obj.optString("url", obj.optString("link", ""));
-                    titles.add(title);
-                    urls.add(url);
-                    isPageList.add(false);
-                }
-            }
-        }
-
-        if (!categoryMode) {
-            JSONArray pages = json.optJSONArray("pages");
-            if (pages != null) {
-                for (int i = 0; i < pages.length(); i++) {
-                    JSONObject p = pages.optJSONObject(i);
-                    if (p != null) {
-                        String pageTitle = p.optString("title", "");
-                        String pageUrl = p.optString("url", "");
-                        if (!pageTitle.isEmpty() && !pageUrl.isEmpty()) {
-                            titles.add(pageTitle);
-                            urls.add(pageUrl);
-                            isPageList.add(true);
-                        }
-                    }
-                }
-            }
-        }
     }
 
     private void fetchJson(String endpoint, JsonCallback callback) {
@@ -501,7 +634,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        if (playerContainer != null && playerContainer.getVisibility() == View.VISIBLE) {
+        if (playerSection != null && playerSection.getVisibility() == View.VISIBLE) {
             hidePlayer();
         } else if (!isShowingCategories) {
             loadCategories();
