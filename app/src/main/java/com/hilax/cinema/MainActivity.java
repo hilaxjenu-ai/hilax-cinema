@@ -68,7 +68,6 @@ public class MainActivity extends AppCompatActivity {
         root.setBackgroundColor(Color.parseColor("#0B0B0C"));
         root.setPadding(24, 24, 24, 24);
 
-        // Top Bar
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
@@ -96,7 +95,6 @@ public class MainActivity extends AppCompatActivity {
         topBar.addView(btnHome);
         root.addView(topBar);
 
-        // Dual-Site Search Bar (Movies & Web Series)
         LinearLayout searchRow = new LinearLayout(this);
         searchRow.setOrientation(LinearLayout.HORIZONTAL);
         searchRow.setPadding(0, 0, 0, 14);
@@ -130,7 +128,6 @@ public class MainActivity extends AppCompatActivity {
         searchRow.addView(btnSearch);
         root.addView(searchRow);
 
-        // Advanced Player Section
         playerSection = new LinearLayout(this);
         playerSection.setOrientation(LinearLayout.VERTICAL);
         playerSection.setBackgroundColor(Color.parseColor("#111115"));
@@ -167,7 +164,6 @@ public class MainActivity extends AppCompatActivity {
         playerBox.addView(btnClosePlayer, closeParams);
         btnClosePlayer.setOnClickListener(v -> hidePlayer());
 
-        // Player Extra Controls Row (-10s, +10s, Speed)
         LinearLayout controlsRow = new LinearLayout(this);
         controlsRow.setOrientation(LinearLayout.HORIZONTAL);
         controlsRow.setPadding(0, 10, 0, 2);
@@ -237,7 +233,6 @@ public class MainActivity extends AppCompatActivity {
         playerSection.addView(controlsRow);
         root.addView(playerSection);
 
-        // Section Status
         tvStatus = new TextView(this);
         tvStatus.setText("CATEGORIES");
         tvStatus.setTextColor(Color.parseColor("#E5E5E5"));
@@ -246,7 +241,6 @@ public class MainActivity extends AppCompatActivity {
         tvStatus.setPadding(0, 0, 0, 12);
         root.addView(tvStatus);
 
-        // Scrollable Grid
         ScrollView scrollView = new ScrollView(this);
         scrollView.setBackgroundColor(Color.parseColor("#0B0B0C"));
         LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
@@ -575,8 +569,8 @@ public class MainActivity extends AppCompatActivity {
                     tvStatus.setText("NOW PLAYING: " + itemTitle);
                     MediaItem mediaItem = MediaItem.fromUri(Uri.parse(finalUrl));
                     player.setMediaItem(mediaItem);
-                    player.setPlaybackSpeed(currentSpeed);
                     player.prepare();
+                    player.setPlaybackSpeed(currentSpeed);
                     player.play();
                 });
             }
