@@ -63,214 +63,251 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.parseColor("#0B0B0C"));
-        root.setPadding(24, 24, 24, 24);
+        try {
+            LinearLayout root = new LinearLayout(this);
+            root.setOrientation(LinearLayout.VERTICAL);
+            root.setBackgroundColor(Color.parseColor("#0B0B0C"));
+            root.setPadding(24, 24, 24, 24);
 
-        LinearLayout topBar = new LinearLayout(this);
-        topBar.setOrientation(LinearLayout.HORIZONTAL);
-        topBar.setGravity(Gravity.CENTER_VERTICAL);
-        topBar.setPadding(0, 0, 0, 14);
+            // Top Bar
+            LinearLayout topBar = new LinearLayout(this);
+            topBar.setOrientation(LinearLayout.HORIZONTAL);
+            topBar.setGravity(Gravity.CENTER_VERTICAL);
+            topBar.setPadding(0, 0, 0, 14);
 
-        TextView tvHeader = new TextView(this);
-        tvHeader.setText("HILAX CINEMA");
-        tvHeader.setTextColor(Color.parseColor("#E50914"));
-        tvHeader.setTextSize(22f);
-        tvHeader.setTypeface(Typeface.DEFAULT_BOLD);
-        LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        );
-        topBar.addView(tvHeader, headerParams);
+            TextView tvHeader = new TextView(this);
+            tvHeader.setText("HILAX CINEMA");
+            tvHeader.setTextColor(Color.parseColor("#E50914"));
+            tvHeader.setTextSize(22f);
+            tvHeader.setTypeface(Typeface.DEFAULT_BOLD);
+            LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+            );
+            topBar.addView(tvHeader, headerParams);
 
-        Button btnHome = new Button(this);
-        btnHome.setText("HOME");
-        btnHome.setTextColor(Color.WHITE);
-        btnHome.setTextSize(12f);
-        btnHome.setBackgroundColor(Color.parseColor("#1F1F23"));
-        btnHome.setOnClickListener(v -> {
-            hidePlayer();
-            loadCategories();
-        });
-        topBar.addView(btnHome);
-        root.addView(topBar);
-
-        LinearLayout searchRow = new LinearLayout(this);
-        searchRow.setOrientation(LinearLayout.HORIZONTAL);
-        searchRow.setPadding(0, 0, 0, 14);
-
-        etSearch = new EditText(this);
-        etSearch.setHint("Search movies, web series (2 sites)...");
-        etSearch.setHintTextColor(Color.parseColor("#888888"));
-        etSearch.setTextColor(Color.WHITE);
-        etSearch.setBackgroundColor(Color.parseColor("#18181B"));
-        etSearch.setPadding(20, 16, 20, 16);
-        etSearch.setSingleLine(true);
-        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        );
-        searchParams.setMargins(0, 0, 12, 0);
-        searchRow.addView(etSearch, searchParams);
-
-        Button btnSearch = new Button(this);
-        btnSearch.setText("SEARCH");
-        btnSearch.setTextColor(Color.WHITE);
-        btnSearch.setBackgroundColor(Color.parseColor("#E50914"));
-        btnSearch.setOnClickListener(v -> {
-            String q = etSearch.getText().toString().trim();
-            if (!TextUtils.isEmpty(q)) {
+            Button btnHome = new Button(this);
+            btnHome.setText("HOME");
+            btnHome.setTextColor(Color.WHITE);
+            btnHome.setTextSize(12f);
+            btnHome.setBackgroundColor(Color.parseColor("#1F1F23"));
+            btnHome.setOnClickListener(v -> {
                 hidePlayer();
-                loadSearch(q);
-            } else {
-                Toast.makeText(this, "Enter movie or web series name", Toast.LENGTH_SHORT).show();
-            }
-        });
-        searchRow.addView(btnSearch);
-        root.addView(searchRow);
+                loadCategories();
+            });
+            topBar.addView(btnHome);
+            root.addView(topBar);
 
-        playerSection = new LinearLayout(this);
-        playerSection.setOrientation(LinearLayout.VERTICAL);
-        playerSection.setBackgroundColor(Color.parseColor("#111115"));
-        playerSection.setPadding(10, 10, 10, 10);
-        playerSection.setVisibility(View.GONE);
-        LinearLayout.LayoutParams secParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        secParams.setMargins(0, 0, 0, 14);
-        root.addView(playerSection, secParams);
+            // Dual-Site Search Bar (Movies & Web Series)
+            LinearLayout searchRow = new LinearLayout(this);
+            searchRow.setOrientation(LinearLayout.HORIZONTAL);
+            searchRow.setPadding(0, 0, 0, 14);
 
-        FrameLayout playerBox = new FrameLayout(this);
-        playerBox.setBackgroundColor(Color.BLACK);
-        playerSection.addView(playerBox, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 460
-        ));
+            etSearch = new EditText(this);
+            etSearch.setHint("Search movies, web series (2 sites)...");
+            etSearch.setHintTextColor(Color.parseColor("#888888"));
+            etSearch.setTextColor(Color.WHITE);
+            etSearch.setBackgroundColor(Color.parseColor("#18181B"));
+            etSearch.setPadding(20, 16, 20, 16);
+            etSearch.setSingleLine(true);
+            LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+            );
+            searchParams.setMargins(0, 0, 12, 0);
+            searchRow.addView(etSearch, searchParams);
 
-        playerView = new PlayerView(this);
-        playerView.setBackgroundColor(Color.BLACK);
-        playerBox.addView(playerView, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
-        ));
-
-        Button btnClosePlayer = new Button(this);
-        btnClosePlayer.setText("✕ CLOSE");
-        btnClosePlayer.setTextColor(Color.WHITE);
-        btnClosePlayer.setTextSize(11f);
-        btnClosePlayer.setBackgroundColor(Color.parseColor("#B3000000"));
-        FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        );
-        closeParams.gravity = Gravity.TOP | Gravity.END;
-        closeParams.setMargins(8, 8, 8, 8);
-        playerBox.addView(btnClosePlayer, closeParams);
-        btnClosePlayer.setOnClickListener(v -> hidePlayer());
-
-        LinearLayout controlsRow = new LinearLayout(this);
-        controlsRow.setOrientation(LinearLayout.HORIZONTAL);
-        controlsRow.setPadding(0, 10, 0, 2);
-
-        Button btnRewind = new Button(this);
-        btnRewind.setText("⏪ -10s");
-        btnRewind.setTextColor(Color.WHITE);
-        btnRewind.setTextSize(11f);
-        btnRewind.setBackgroundColor(Color.parseColor("#23232A"));
-        LinearLayout.LayoutParams ctrlParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        );
-        ctrlParams.setMargins(0, 0, 8, 0);
-        controlsRow.addView(btnRewind, ctrlParams);
-        btnRewind.setOnClickListener(v -> {
-            if (player != null) {
-                long target = Math.max(0L, player.getCurrentPosition() - 10000L);
-                player.seekTo(target);
-            }
-        });
-
-        Button btnForward = new Button(this);
-        btnForward.setText("+10s ⏩");
-        btnForward.setTextColor(Color.WHITE);
-        btnForward.setTextSize(11f);
-        btnForward.setBackgroundColor(Color.parseColor("#23232A"));
-        LinearLayout.LayoutParams fwdParams = new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        );
-        fwdParams.setMargins(0, 0, 8, 0);
-        controlsRow.addView(btnForward, fwdParams);
-        btnForward.setOnClickListener(v -> {
-            if (player != null) {
-                long dur = player.getDuration();
-                long nextPos = player.getCurrentPosition() + 10000L;
-                if (dur > 0 && nextPos > dur) {
-                    nextPos = dur;
+            Button btnSearch = new Button(this);
+            btnSearch.setText("SEARCH");
+            btnSearch.setTextColor(Color.WHITE);
+            btnSearch.setBackgroundColor(Color.parseColor("#E50914"));
+            btnSearch.setOnClickListener(v -> {
+                String q = etSearch.getText().toString().trim();
+                if (!TextUtils.isEmpty(q)) {
+                    hidePlayer();
+                    loadSearch(q);
+                } else {
+                    Toast.makeText(this, "Enter movie or web series name", Toast.LENGTH_SHORT).show();
                 }
-                player.seekTo(nextPos);
+            });
+            searchRow.addView(btnSearch);
+            root.addView(searchRow);
+
+            // Advanced Player Section
+            playerSection = new LinearLayout(this);
+            playerSection.setOrientation(LinearLayout.VERTICAL);
+            playerSection.setBackgroundColor(Color.parseColor("#111115"));
+            playerSection.setPadding(10, 10, 10, 10);
+            playerSection.setVisibility(View.GONE);
+            LinearLayout.LayoutParams secParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            secParams.setMargins(0, 0, 0, 14);
+            root.addView(playerSection, secParams);
+
+            FrameLayout playerBox = new FrameLayout(this);
+            playerBox.setBackgroundColor(Color.BLACK);
+            playerSection.addView(playerBox, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, 460
+            ));
+
+            playerView = new PlayerView(this);
+            playerView.setBackgroundColor(Color.BLACK);
+            playerBox.addView(playerView, new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT
+            ));
+
+            Button btnClosePlayer = new Button(this);
+            btnClosePlayer.setText("✕ CLOSE");
+            btnClosePlayer.setTextColor(Color.WHITE);
+            btnClosePlayer.setTextSize(11f);
+            btnClosePlayer.setBackgroundColor(Color.parseColor("#B3000000"));
+            FrameLayout.LayoutParams closeParams = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            closeParams.gravity = Gravity.TOP | Gravity.END;
+            closeParams.setMargins(8, 8, 8, 8);
+            playerBox.addView(btnClosePlayer, closeParams);
+            btnClosePlayer.setOnClickListener(v -> hidePlayer());
+
+            // Player Extra Controls Row (-10s, +10s, Speed)
+            LinearLayout controlsRow = new LinearLayout(this);
+            controlsRow.setOrientation(LinearLayout.HORIZONTAL);
+            controlsRow.setPadding(0, 10, 0, 2);
+
+            Button btnRewind = new Button(this);
+            btnRewind.setText("⏪ -10s");
+            btnRewind.setTextColor(Color.WHITE);
+            btnRewind.setTextSize(11f);
+            btnRewind.setBackgroundColor(Color.parseColor("#23232A"));
+            LinearLayout.LayoutParams ctrlParams = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+            );
+            ctrlParams.setMargins(0, 0, 8, 0);
+            controlsRow.addView(btnRewind, ctrlParams);
+            btnRewind.setOnClickListener(v -> {
+                if (player != null) {
+                    long target = Math.max(0L, player.getCurrentPosition() - 10000L);
+                    player.seekTo(target);
+                }
+            });
+
+            Button btnForward = new Button(this);
+            btnForward.setText("+10s ⏩");
+            btnForward.setTextColor(Color.WHITE);
+            btnForward.setTextSize(11f);
+            btnForward.setBackgroundColor(Color.parseColor("#23232A"));
+            LinearLayout.LayoutParams fwdParams = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+            );
+            fwdParams.setMargins(0, 0, 8, 0);
+            controlsRow.addView(btnForward, fwdParams);
+            btnForward.setOnClickListener(v -> {
+                if (player != null) {
+                    long dur = player.getDuration();
+                    long nextPos = player.getCurrentPosition() + 10000L;
+                    if (dur > 0 && nextPos > dur) {
+                        nextPos = dur;
+                    }
+                    player.seekTo(nextPos);
+                }
+            });
+
+            btnSpeed = new Button(this);
+            btnSpeed.setText("1.0x");
+            btnSpeed.setTextColor(Color.parseColor("#E50914"));
+            btnSpeed.setTextSize(11f);
+            btnSpeed.setTypeface(Typeface.DEFAULT_BOLD);
+            btnSpeed.setBackgroundColor(Color.parseColor("#23232A"));
+            controlsRow.addView(btnSpeed, new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
+            ));
+            btnSpeed.setOnClickListener(v -> {
+                if (currentSpeed == 1.0f) {
+                    currentSpeed = 1.25f;
+                } else if (currentSpeed == 1.25f) {
+                    currentSpeed = 1.5f;
+                } else if (currentSpeed == 1.5f) {
+                    currentSpeed = 2.0f;
+                } else {
+                    currentSpeed = 1.0f;
+                }
+                if (player != null) {
+                    player.setPlaybackSpeed(currentSpeed);
+                }
+                btnSpeed.setText(currentSpeed + "x");
+            });
+
+            playerSection.addView(controlsRow);
+            root.addView(playerSection);
+
+            // Section Status
+            tvStatus = new TextView(this);
+            tvStatus.setText("CATEGORIES");
+            tvStatus.setTextColor(Color.parseColor("#E5E5E5"));
+            tvStatus.setTextSize(15f);
+            tvStatus.setTypeface(Typeface.DEFAULT_BOLD);
+            tvStatus.setPadding(0, 0, 0, 12);
+            root.addView(tvStatus);
+
+            // Scrollable Grid
+            ScrollView scrollView = new ScrollView(this);
+            scrollView.setBackgroundColor(Color.parseColor("#0B0B0C"));
+            LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
+            );
+            root.addView(scrollView, scrollParams);
+
+            gridContainer = new LinearLayout(this);
+            gridContainer.setOrientation(LinearLayout.VERTICAL);
+            scrollView.addView(gridContainer);
+
+            setContentView(root);
+
+            loadCategories();
+        } catch (Exception e) {
+            Toast.makeText(this, "Init error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void ensurePlayer() {
+        if (player == null) {
+            player = new ExoPlayer.Builder(this).build();
+            playerView.setPlayer(player);
+            player.addListener(new Player.Listener() {
+                @Override
+                public void onPlayerError(PlaybackException error) {
+                    showToast("Player error: " + error.getErrorCodeName());
+                }
+            });
+        }
+    }
+
+    private void playStream(String title, String streamUrl) {
+        runOnUiThread(() -> {
+            try {
+                ensurePlayer();
+                playerSection.setVisibility(View.VISIBLE);
+                tvStatus.setText("NOW PLAYING: " + title);
+                MediaItem mediaItem = MediaItem.fromUri(Uri.parse(streamUrl));
+                player.setMediaItem(mediaItem);
+                player.prepare();
+                player.setPlaybackSpeed(currentSpeed);
+                player.play();
+            } catch (Exception e) {
+                showToast("Play error: " + e.getMessage());
             }
         });
-
-        btnSpeed = new Button(this);
-        btnSpeed.setText("1.0x");
-        btnSpeed.setTextColor(Color.parseColor("#E50914"));
-        btnSpeed.setTextSize(11f);
-        btnSpeed.setTypeface(Typeface.DEFAULT_BOLD);
-        btnSpeed.setBackgroundColor(Color.parseColor("#23232A"));
-        controlsRow.addView(btnSpeed, new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-        ));
-        btnSpeed.setOnClickListener(v -> {
-            if (player == null) return;
-            if (currentSpeed == 1.0f) {
-                currentSpeed = 1.25f;
-            } else if (currentSpeed == 1.25f) {
-                currentSpeed = 1.5f;
-            } else if (currentSpeed == 1.5f) {
-                currentSpeed = 2.0f;
-            } else {
-                currentSpeed = 1.0f;
-            }
-            player.setPlaybackSpeed(currentSpeed);
-            btnSpeed.setText(currentSpeed + "x");
-        });
-
-        playerSection.addView(controlsRow);
-        root.addView(playerSection);
-
-        tvStatus = new TextView(this);
-        tvStatus.setText("CATEGORIES");
-        tvStatus.setTextColor(Color.parseColor("#E5E5E5"));
-        tvStatus.setTextSize(15f);
-        tvStatus.setTypeface(Typeface.DEFAULT_BOLD);
-        tvStatus.setPadding(0, 0, 0, 12);
-        root.addView(tvStatus);
-
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.setBackgroundColor(Color.parseColor("#0B0B0C"));
-        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f
-        );
-        root.addView(scrollView, scrollParams);
-
-        gridContainer = new LinearLayout(this);
-        gridContainer.setOrientation(LinearLayout.VERTICAL);
-        scrollView.addView(gridContainer);
-
-        setContentView(root);
-
-        player = new ExoPlayer.Builder(this).build();
-        playerView.setPlayer(player);
-        player.addListener(new Player.Listener() {
-            @Override
-            public void onPlayerError(PlaybackException error) {
-                showToast("Player error: " + error.getErrorCodeName());
-            }
-        });
-
-        loadCategories();
     }
 
     private void hidePlayer() {
-        if (player != null) {
-            player.pause();
+        try {
+            if (player != null) {
+                player.pause();
+            }
+            if (playerSection != null) {
+                playerSection.setVisibility(View.GONE);
+            }
+        } catch (Exception ignored) {
         }
-        playerSection.setVisibility(View.GONE);
     }
 
     private void loadCategories() {
@@ -563,16 +600,7 @@ public class MainActivity extends AppCompatActivity {
                     streamUrl = BASE_URL + streamUrl;
                 }
 
-                final String finalUrl = streamUrl;
-                runOnUiThread(() -> {
-                    playerSection.setVisibility(View.VISIBLE);
-                    tvStatus.setText("NOW PLAYING: " + itemTitle);
-                    MediaItem mediaItem = MediaItem.fromUri(Uri.parse(finalUrl));
-                    player.setMediaItem(mediaItem);
-                    player.prepare();
-                    player.setPlaybackSpeed(currentSpeed);
-                    player.play();
-                });
+                playStream(itemTitle, streamUrl);
             }
 
             @Override
